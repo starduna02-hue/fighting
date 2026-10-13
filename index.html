@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>오늘의 응원 한마디</title>
+  <style>
+    :root {
+      --bg: #fff8f0;
+      --card: #ffffff;
+      --text: #2b2b2b;
+      --muted: #6b6b6b;
+      --accent: #ff7a59;
+      --accent-dark: #e8603f;
+      --error-bg: #fff0f0;
+      --error-text: #c0392b;
+      --border: #f0e2d6;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+      font-size: 20px;
+      line-height: 1.6;
+    }
+
+    main {
+      width: 100%;
+      max-width: 520px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 32px 24px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 2rem;
+      text-align: center;
+    }
+
+    .sub {
+      margin: 0 0 28px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .hint {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    input {
+      width: 100%;
+      padding: 16px 18px;
+      font-size: 1.25rem;
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      outline: none;
+    }
+
+    input:focus { border-color: var(--accent); }
+
+    button {
+      width: 100%;
+      margin-top: 20px;
+      padding: 18px;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+    }
+
+    button:hover { background: var(--accent-dark); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+
+    #result {
+      margin-top: 28px;
+      min-height: 120px;
+      padding: 24px 20px;
+      border-radius: 16px;
+      background: var(--bg);
+      font-size: 1.4rem;
+      font-weight: 700;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      word-break: keep-all;
+    }
+
+    #result.placeholder,
+    #result.loading { color: var(--muted); font-weight: 400; font-size: 1.15rem; }
+
+    #result.error {
+      background: var(--error-bg);
+      color: var(--error-text);
+      font-weight: 400;
+      font-size: 1.1rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>오늘의 응원 한마디</h1>
+    <p class="sub">닉네임을 적고 응원을 받아 보세요</p>
+
+    <form id="form">
+      <label for="name">공개용 닉네임</label>
+      <input id="name" type="text" maxlength="20" autocomplete="off" placeholder="비우면 '여러분'으로 불러요" />
+      <span class="hint">실명 대신 공개해도 괜찮은 닉네임을 적어 주세요.</span>
+      <button id="btn" type="submit">응원 받기</button>
+    </form>
+
+    <div id="result" class="placeholder" role="status" aria-live="polite">
+      버튼을 누르면 응원 한마디가 여기에 나타나요.
+    </div>
+  </main>
+
+  <script>
+    const form = document.getElementById('form');
+    const input = document.getElementById('name');
+    const btn = document.getElementById('btn');
+    const result = document.getElementById('result');
+
+    function show(text, state) {
+      result.textContent = text;
+      result.className = state || '';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const name = input.value.trim();
+      btn.disabled = true;
+      btn.textContent = '불러오는 중…';
+      show('응원 한마디를 가져오는 중이에요…', 'loading');
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+
+      try {
+        const res = await fetch('/api/message?name=' + encodeURIComponent(name), {
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        const type = res.headers.get('content-type') || '';
+        if (!type.includes('application/json')) throw new Error('JSON 응답 아님');
+
+        const data = await res.json();
+        if (!data || typeof data.message !== 'string') throw new Error('잘못된 응답');
+
+        show(data.message);
+      } catch (err) {
+        const reason = err.name === 'AbortError' ? '응답 시간이 초과되었어요.' : '서버에 연결하지 못했어요.';
+        show(reason + ' 잠시 후 다시 시도해 주세요.', 'error');
+      } finally {
+        clearTimeout(timer);
+        btn.disabled = false;
+        btn.textContent = '응원 받기';
+      }
+    });
+  </script>
+</body>
+</html>
